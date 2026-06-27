@@ -198,5 +198,5 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
-Built with ❤️ by [Gaurav](https://gauravbytes.hashnode.dev)
+Built with ❤️ by [Gaurav](https://gauravbytes.dev)
 
