@@ -64,8 +64,9 @@ def save_session(
     model: str = "",
     db_label: str = "",
     summary: str = "",
+    schema_cache=None,
 ) -> None:
-    """Save session to disk."""
+    """Save session to disk, including schema cache if provided."""
     _ensure_sessions_dir()
     path = _session_path(name)
 
@@ -84,6 +85,11 @@ def save_session(
         "summary": summary,
         "messages": [_serialize_message(m) for m in messages],
     }
+
+    # Include schema cache if available
+    if schema_cache is not None:
+        data["schema_cache"] = schema_cache.to_dict()
+
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
 
 

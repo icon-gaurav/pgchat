@@ -12,7 +12,7 @@ from pgagent.db import execute_sql, SQLSafetyError, SQLExecutionError
 
 @tool
 def list_tables() -> str:
-    """List all tables in the public schema of the connected PostgreSQL database."""
+    """List all tables in the public schema. Only call this if the user explicitly asked to refresh schema information or if you suspect the cached schema is outdated. Prefer the schema context already provided in the system prompt."""
     try:
         result = execute_sql("""
             SELECT table_name FROM information_schema.tables
@@ -31,7 +31,7 @@ def list_tables() -> str:
 
 @tool
 def get_table_schema(table_name: str) -> str:
-    """Get the schema (columns, types, nullability, defaults) of a specific table."""
+    """Get the schema (columns, types, nullability, defaults) of a specific table. Only call this if the user explicitly asked to refresh schema information or if you suspect the cached schema is outdated. Prefer the schema context already provided in the system prompt."""
     try:
         result = execute_sql(
             """

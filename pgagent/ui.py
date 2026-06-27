@@ -219,14 +219,15 @@ def print_help() -> None:
     help_text = """
 [bold]In-Chat Commands:[/bold]
 
-  [cyan]/sessions[/cyan]       — List all saved sessions
-  [cyan]/new[/cyan]            — Start a fresh session
-  [cyan]/resume <name>[/cyan]  — Switch to a different session
-  [cyan]/clear[/cyan]          — Clear current session history
-  [cyan]/export[/cyan]         — Export current session as markdown
-  [cyan]/history[/cyan]        — Show last 10 turns
-  [cyan]/help[/cyan]           — Show this help
-  [cyan]exit[/cyan]            — Quit PGAgent
+  [cyan]/sessions[/cyan]        — List all saved sessions
+  [cyan]/new[/cyan]             — Start a fresh session
+  [cyan]/resume <name>[/cyan]   — Switch to a different session
+  [cyan]/clear[/cyan]           — Clear current session history
+  [cyan]/export[/cyan]          — Export current session as markdown
+  [cyan]/history[/cyan]         — Show last 10 turns
+  [cyan]/refresh-schema[/cyan]  — Re-fetch database schema from server
+  [cyan]/help[/cyan]            — Show this help
+  [cyan]exit[/cyan]             — Quit PGAgent
 """
     console.print(Panel(help_text.strip(), title="Help", border_style="cyan"))
 

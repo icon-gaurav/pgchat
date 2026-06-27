@@ -14,7 +14,8 @@ from pgagent.config import (
     load_config,
     run_config_wizard,
 )
-from pgagent.db import init_db, test_connection, get_cached_tables
+from pgagent.db import init_db, test_connection
+from pgagent.schema_cache import SchemaCache, build_schema_cache
 from pgagent.memory import (
     build_summary_prompt,
     delete_session,
@@ -104,10 +105,20 @@ def main(ctx, run_config, db_url, model, backend, session_name, show_tool_calls)
     print_success(f"Connected to PostgreSQL")
     console.print(f"  [dim]{msg.split(',')[0] if ',' in msg else msg[:60]}[/dim]")
 
-    # Auto-explore: get table list for context
-    with console.status("[cyan]Exploring database schema...[/cyan]"):
-        tables = get_cached_tables()
-    db_context = ", ".join(tables) if tables else "No tables found"
+    # Load schema cache — fetched ONCE on startup
+    schema_cache: Optional[SchemaCache] = None
+    with console.status("[cyan]📦 Loading schema...[/cyan]"):
+        try:
+            schema_cache = build_schema_cache()
+        except Exception as e:
+            schema_cache = None
+
+    if schema_cache and schema_cache.tables:
+        print_success(f"Schema loaded — {len(schema_cache.tables)} tables found")
+    elif schema_cache:
+        print_warning("Schema loaded but no tables found in public schema")
+    else:
+        print_warning("Could not load schema — agent will discover tables via tools")
 
     # Session setup
     current_session = _resolve_session(cfg, session_name)
@@ -121,7 +132,7 @@ def main(ctx, run_config, db_url, model, backend, session_name, show_tool_calls)
     )
 
     # Start the chat loop
-    _chat_loop(cfg, db_context, current_session)
+    _chat_loop(cfg, schema_cache, current_session)
 
 
 @main.group()
@@ -208,7 +219,7 @@ def _generate_session_name() -> str:
     return datetime.now().strftime("session_%Y%m%d_%H%M%S")
 
 
-def _chat_loop(cfg: Config, db_context: str, session_name: str) -> None:
+def _chat_loop(cfg: Config, schema_cache: Optional[SchemaCache], session_name: str) -> None:
     """Main interactive chat loop."""
     from pgagent.agent import (
         build_system_message,
@@ -223,13 +234,19 @@ def _chat_loop(cfg: Config, db_context: str, session_name: str) -> None:
     with console.status("[cyan]Initializing AI agent...[/cyan]"):
         agent = create_pg_agent(cfg)
 
-    system_msg = build_system_message(db_context)
+    # Build system message with schema cache injected
+    system_msg = build_system_message(schema_cache)
 
     # Load existing session messages or start fresh
     session_data = load_session(session_name)
     if session_data:
         chat_history: list[BaseMessage] = deserialize_messages(session_data)
         summary = session_data.get("summary", "")
+        # If session has a cached schema and we didn't load one fresh, use it
+        if not schema_cache and "schema_cache" in session_data:
+            schema_cache = SchemaCache.from_dict(session_data["schema_cache"])
+            system_msg = build_system_message(schema_cache)
+            console.print(f"[dim]Loaded schema from session cache.[/dim]")
         if summary:
             console.print(f"[dim]Session has a summary from previous turns.[/dim]")
     else:
@@ -244,32 +261,31 @@ def _chat_loop(cfg: Config, db_context: str, session_name: str) -> None:
 
         # Handle exit
         if user_input.lower() in ("exit", "quit"):
-            save_session(session_name, chat_history, cfg.model, cfg.get_db_label(), summary)
+            save_session(
+                session_name, chat_history, cfg.model, cfg.get_db_label(),
+                summary, schema_cache,
+            )
             console.print("\n[dim]Session saved. Goodbye! 👋[/dim]")
             break
 
         # Handle slash commands
         if user_input.startswith("/"):
-            handled = _handle_command(
-                user_input, cfg, session_name, chat_history, summary
+            result = _handle_command(
+                user_input, cfg, session_name, chat_history, summary, schema_cache
             )
-            if handled == "new_session":
-                session_name = _generate_session_name()
-                chat_history = []
-                summary = ""
-                print_info(f"New session: {session_name}")
-            elif handled == "exit":
-                break
-            elif isinstance(handled, tuple) and handled[0] == "resume":
-                session_name = handled[1]
-                session_data = load_session(session_name)
-                if session_data:
-                    chat_history = deserialize_messages(session_data)
-                    summary = session_data.get("summary", "")
-                else:
-                    chat_history = []
-                    summary = ""
-                print_info(f"Resumed session: {session_name}")
+            if isinstance(result, dict):
+                # Command returned updated state
+                if "session_name" in result:
+                    session_name = result["session_name"]
+                if "chat_history" in result:
+                    chat_history = result["chat_history"]
+                if "summary" in result:
+                    summary = result["summary"]
+                if "schema_cache" in result:
+                    schema_cache = result["schema_cache"]
+                    system_msg = build_system_message(schema_cache)
+                if result.get("break"):
+                    break
             continue
 
         # Add user message
@@ -305,12 +321,15 @@ def _chat_loop(cfg: Config, db_context: str, session_name: str) -> None:
         # Append new messages to history
         chat_history.extend(new_messages)
 
-        # Auto-save
-        save_session(session_name, chat_history, cfg.model, cfg.get_db_label(), summary)
+        # Auto-save (includes schema cache)
+        save_session(
+            session_name, chat_history, cfg.model, cfg.get_db_label(),
+            summary, schema_cache,
+        )
 
         # Check if summarization is needed
         if should_summarize(chat_history):
-            _do_summarize(agent, system_msg, chat_history, session_name, cfg, summary)
+            _do_summarize(agent, system_msg, chat_history, session_name, cfg, summary, schema_cache)
 
 
 def _handle_command(
@@ -319,8 +338,9 @@ def _handle_command(
     session_name: str,
     chat_history: list[BaseMessage],
     summary: str,
-) -> Optional[str | tuple[str, str]]:
-    """Handle slash commands. Returns action string or None."""
+    schema_cache: Optional[SchemaCache],
+) -> Optional[dict]:
+    """Handle slash commands. Returns dict with state changes or None."""
     parts = command.strip().split(maxsplit=1)
     cmd = parts[0].lower()
     arg = parts[1] if len(parts) > 1 else ""
@@ -331,20 +351,36 @@ def _handle_command(
         all_sessions = list_sessions()
         print_sessions_table(all_sessions)
     elif cmd == "/new":
-        return "new_session"
+        return {
+            "session_name": _generate_session_name(),
+            "chat_history": [],
+            "summary": "",
+        }
     elif cmd == "/resume":
         if not arg:
             console.print("[yellow]Usage: /resume <session_name>[/yellow]")
             return None
-        if load_session(arg):
-            return ("resume", arg)
+        session_data = load_session(arg)
+        if session_data:
+            new_history = deserialize_messages(session_data)
+            new_summary = session_data.get("summary", "")
+            result: dict = {
+                "session_name": arg,
+                "chat_history": new_history,
+                "summary": new_summary,
+            }
+            # Load schema from resumed session if available
+            if "schema_cache" in session_data:
+                result["schema_cache"] = SchemaCache.from_dict(session_data["schema_cache"])
+            print_info(f"Resumed session: {arg}")
+            return result
         else:
             print_error(f"Session '{arg}' not found.")
     elif cmd == "/clear":
         chat_history.clear()
         print_success("Session history cleared.")
     elif cmd == "/export":
-        save_session(session_name, chat_history, cfg.model, cfg.get_db_label(), summary)
+        save_session(session_name, chat_history, cfg.model, cfg.get_db_label(), summary, schema_cache)
         md = export_session_markdown(session_name)
         if md:
             out_path = Path(f"{session_name}_export.md")
@@ -356,10 +392,39 @@ def _handle_command(
         from pgagent.memory import _serialize_message
         serialized = [_serialize_message(m) for m in chat_history]
         print_history(serialized)
+    elif cmd == "/refresh-schema":
+        return _do_refresh_schema(schema_cache, session_name, chat_history, cfg, summary)
     else:
         print_warning(f"Unknown command: {cmd}. Type /help for commands.")
 
     return None
+
+
+def _do_refresh_schema(
+    old_cache: Optional[SchemaCache],
+    session_name: str,
+    chat_history: list[BaseMessage],
+    cfg: Config,
+    summary: str,
+) -> Optional[dict]:
+    """Handle /refresh-schema command."""
+    with console.status("[cyan]🔄 Refreshing schema...[/cyan]"):
+        try:
+            new_cache = build_schema_cache()
+        except Exception as e:
+            print_error(f"Failed to refresh schema: {e}")
+            return None
+
+    if old_cache:
+        diff = old_cache.diff_summary(new_cache)
+        print_success(f"Schema refreshed — {diff}")
+    else:
+        print_success(f"Schema refreshed — {len(new_cache.tables)} tables loaded")
+
+    # Save updated session
+    save_session(session_name, chat_history, cfg.model, cfg.get_db_label(), summary, new_cache)
+
+    return {"schema_cache": new_cache}
 
 
 def _do_summarize(
@@ -369,9 +434,10 @@ def _do_summarize(
     session_name: str,
     cfg: Config,
     existing_summary: str,
+    schema_cache: Optional[SchemaCache],
 ) -> None:
     """Summarize conversation when it gets too long."""
-    from pgagent.agent import invoke_agent
+    from pgagent.agent import invoke_agent, extract_response_text
 
     prompt = build_summary_prompt(chat_history)
     summary_messages = [HumanMessage(content=prompt)]
@@ -379,14 +445,13 @@ def _do_summarize(
     try:
         with console.status("[dim]Summarizing conversation...[/dim]"):
             result = invoke_agent(agent, summary_messages, system_msg)
-        from pgagent.agent import extract_response_text
         new_summary = extract_response_text(result)
         if new_summary:
             # Keep only last 10 messages + summary
             trimmed = chat_history[-10:]
             chat_history.clear()
             chat_history.extend(trimmed)
-            save_session(session_name, chat_history, cfg.model, cfg.get_db_label(), new_summary)
+            save_session(session_name, chat_history, cfg.model, cfg.get_db_label(), new_summary, schema_cache)
             console.print("[dim]💾 Conversation summarized to save context.[/dim]")
     except Exception:
         pass  # Non-critical, just skip summarization
@@ -394,7 +459,4 @@ def _do_summarize(
 
 if __name__ == "__main__":
     main()
-
-
-
 

@@ -1,7 +1,7 @@
 """Agent setup: LLM initialization, tool registration, invocation."""
 
 import warnings
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 from langchain_core._api.deprecation import LangChainPendingDeprecationWarning
 
@@ -15,28 +15,31 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
 from pgagent.config import Config
+from pgagent.schema_cache import SchemaCache
 from pgagent.tools import ALL_TOOLS
 
 SYSTEM_PROMPT = """You are PGAgent, an expert PostgreSQL database assistant. You have access to tools to inspect and query the connected database.
 
 Guidelines:
-- Always explore the schema before writing queries. Use list_tables and get_table_schema to understand the structure first.
+- Use the SCHEMA SNAPSHOT below to answer questions about tables and columns — do NOT call list_tables or get_table_schema unless the user explicitly asks to refresh.
 - Prefer short, precise answers. When showing data, summarize it unless the user asks for raw output.
-- Never guess table or column names — always verify with tools first.
+- Never guess table or column names — verify against the schema snapshot.
 - When you write SQL, explain what it does briefly.
 - If a query fails, analyze the error and suggest fixes.
 - Use get_table_sample to preview data when helpful.
 - Use search_schema when the user asks "which table has X column?"
+- Use run_query to execute SQL queries.
 
-{db_context}"""
+{schema_context}"""
 
 
-def build_system_message(db_context: str = "") -> SystemMessage:
-    """Build the system message with optional database context."""
-    context_section = ""
-    if db_context:
-        context_section = f"\nKnown tables in this database: {db_context}"
-    return SystemMessage(content=SYSTEM_PROMPT.format(db_context=context_section))
+def build_system_message(schema_cache: Optional[SchemaCache] = None) -> SystemMessage:
+    """Build the system message with schema context injected."""
+    if schema_cache:
+        schema_text = schema_cache.to_system_prompt_text()
+    else:
+        schema_text = "(No schema information available. Use list_tables and get_table_schema to explore.)"
+    return SystemMessage(content=SYSTEM_PROMPT.format(schema_context=schema_text))
 
 
 def create_llm(config: Config):
@@ -71,7 +74,7 @@ def invoke_agent(
     system_message: SystemMessage,
 ) -> list[BaseMessage]:
     """Invoke the agent and return the new messages from this turn."""
-    # Prepend system message
+    # Prepend system message (includes schema context)
     full_messages = [system_message] + messages
     response = agent.invoke(cast(Any, {"messages": full_messages}))
     response_messages = response.get("messages", [])
@@ -125,5 +128,3 @@ def extract_tool_responses(messages: list[BaseMessage]) -> list[dict[str, str]]:
                 "content": msg.content if isinstance(msg.content, str) else str(msg.content),
             })
     return responses
-
-
