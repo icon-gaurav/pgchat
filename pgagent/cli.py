@@ -14,7 +14,7 @@ from pgagent.config import (
     load_config,
     run_config_wizard,
 )
-from pgagent.db import DatabaseManager, init_db
+from pgagent.db import init_db, test_connection, get_cached_tables
 from pgagent.memory import (
     build_summary_prompt,
     delete_session,
@@ -90,11 +90,11 @@ def main(ctx, run_config, db_url, model, backend, session_name, show_tool_calls)
         )
 
     # Initialize database
-    db = init_db(cfg)
+    init_db(cfg)
 
     # Test connection
     with console.status("[cyan]Testing database connection...[/cyan]"):
-        success, msg = db.test_connection()
+        success, msg = test_connection()
 
     if not success:
         print_error(f"Connection failed: {msg}")
@@ -106,7 +106,7 @@ def main(ctx, run_config, db_url, model, backend, session_name, show_tool_calls)
 
     # Auto-explore: get table list for context
     with console.status("[cyan]Exploring database schema...[/cyan]"):
-        tables = db.get_tables()
+        tables = get_cached_tables()
     db_context = ", ".join(tables) if tables else "No tables found"
 
     # Session setup
@@ -121,7 +121,7 @@ def main(ctx, run_config, db_url, model, backend, session_name, show_tool_calls)
     )
 
     # Start the chat loop
-    _chat_loop(cfg, db, db_context, current_session)
+    _chat_loop(cfg, db_context, current_session)
 
 
 @main.group()
@@ -208,7 +208,7 @@ def _generate_session_name() -> str:
     return datetime.now().strftime("session_%Y%m%d_%H%M%S")
 
 
-def _chat_loop(cfg: Config, db: DatabaseManager, db_context: str, session_name: str) -> None:
+def _chat_loop(cfg: Config, db_context: str, session_name: str) -> None:
     """Main interactive chat loop."""
     from pgagent.agent import (
         build_system_message,
@@ -251,7 +251,7 @@ def _chat_loop(cfg: Config, db: DatabaseManager, db_context: str, session_name: 
         # Handle slash commands
         if user_input.startswith("/"):
             handled = _handle_command(
-                user_input, cfg, db, session_name, chat_history, summary
+                user_input, cfg, session_name, chat_history, summary
             )
             if handled == "new_session":
                 session_name = _generate_session_name()
@@ -316,7 +316,6 @@ def _chat_loop(cfg: Config, db: DatabaseManager, db_context: str, session_name: 
 def _handle_command(
     command: str,
     cfg: Config,
-    db: DatabaseManager,
     session_name: str,
     chat_history: list[BaseMessage],
     summary: str,

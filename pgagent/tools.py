@@ -1,91 +1,84 @@
-"""Database tools for the LangChain agent."""
+"""Database tools for the LangChain agent.
+
+All SQL execution goes through db.execute_sql() — no direct cursor access.
+"""
 
 import json
-from typing import Optional
 
 from langchain_core.tools import tool
 
-from pgagent.db import get_db
-from pgagent.safety import validate_read_only_sql
+from pgagent.db import execute_sql, SQLSafetyError, SQLExecutionError
 
 
 @tool
 def list_tables() -> str:
     """List all tables in the public schema of the connected PostgreSQL database."""
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        result = execute_sql("""
             SELECT table_name FROM information_schema.tables
             WHERE table_schema = 'public'
             ORDER BY table_name
         """)
-        tables = [row[0] for row in cur.fetchall()]
+        tables = [row[0] for row in result.rows]
         if not tables:
             return "No tables found in the public schema."
         return f"Tables ({len(tables)}): {', '.join(tables)}"
-    finally:
-        conn.close()
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 @tool
 def get_table_schema(table_name: str) -> str:
     """Get the schema (columns, types, nullability, defaults) of a specific table."""
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        result = execute_sql(
+            """
             SELECT column_name, data_type, is_nullable, column_default
             FROM information_schema.columns
             WHERE table_schema = 'public' AND table_name = %s
             ORDER BY ordinal_position
-        """, (table_name,))
-        columns = cur.fetchall()
-        if not columns:
+            """,
+            (table_name,),
+        )
+        if not result.rows:
             return f"Table '{table_name}' not found or has no columns."
-        lines = [f"Schema for '{table_name}' ({len(columns)} columns):"]
-        for col in columns:
+        lines = [f"Schema for '{table_name}' ({result.row_count} columns):"]
+        for col in result.rows:
             nullable = "NULL" if col[2] == "YES" else "NOT NULL"
             default = f" DEFAULT {col[3]}" if col[3] else ""
             lines.append(f"  {col[0]} {col[1]} {nullable}{default}")
         return "\n".join(lines)
-    finally:
-        conn.close()
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 @tool
-def execute_sql(query: str) -> str:
+def run_query(query: str) -> str:
     """Execute a read-only SQL query (SELECT/WITH/SHOW/EXPLAIN) and return results."""
-    is_safe, reason = validate_read_only_sql(query)
-    if not is_safe:
-        return f"⚠ Safety Guard: Blocked. {reason}"
-
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute(query)
-        if cur.description:
-            columns = [desc[0] for desc in cur.description]
-            rows = cur.fetchall()
-            if not rows:
-                return "Query returned no results."
-            result = " | ".join(columns) + "\n"
-            result += "-" * len(result) + "\n"
-            result += "\n".join([" | ".join(str(v) for v in row) for row in rows[:50]])
-            if len(rows) > 50:
-                result += f"\n... (showing 50 of {len(rows)} total rows)"
-            else:
-                result += f"\n({len(rows)} row{'s' if len(rows) != 1 else ''})"
-            return result
+        result = execute_sql(query)
+        if not result.columns:
+            return f"Query executed. Rows affected: {result.row_count}"
+        if not result.rows:
+            return "Query returned no results."
+        output = " | ".join(result.columns) + "\n"
+        output += "-" * len(output) + "\n"
+        output += "\n".join(
+            [" | ".join(str(v) for v in row) for row in result.rows[:50]]
+        )
+        if result.row_count > 50:
+            output += f"\n... (showing 50 of {result.row_count} total rows)"
         else:
-            return f"Query executed. Rows affected: {cur.rowcount}"
-    except Exception as e:
-        return f"SQL Error: {e}"
-    finally:
-        conn.close()
+            output += f"\n({result.row_count} row{'s' if result.row_count != 1 else ''})"
+        return output
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 @tool
@@ -97,51 +90,50 @@ def get_table_sample(table_name: str, limit: int = 5) -> str:
     if limit < 1 or limit > 20:
         limit = 5
 
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute(f'SELECT * FROM "{table_name}" LIMIT %s', (limit,))
-        if cur.description:
-            columns = [desc[0] for desc in cur.description]
-            rows = cur.fetchall()
-            if not rows:
-                return f"Table '{table_name}' is empty."
-            result = " | ".join(columns) + "\n"
-            result += "-" * len(result) + "\n"
-            result += "\n".join([" | ".join(str(v) for v in row) for row in rows])
-            result += f"\n(sample of {len(rows)} row{'s' if len(rows) != 1 else ''})"
-            return result
-        return "No data returned."
-    except Exception as e:
-        return f"Error: {e}"
-    finally:
-        conn.close()
+        result = execute_sql(
+            f'SELECT * FROM "{table_name}" LIMIT %s',
+            (limit,),
+        )
+        if not result.rows:
+            return f"Table '{table_name}' is empty."
+        output = " | ".join(result.columns) + "\n"
+        output += "-" * len(output) + "\n"
+        output += "\n".join(
+            [" | ".join(str(v) for v in row) for row in result.rows]
+        )
+        output += f"\n(sample of {result.row_count} row{'s' if result.row_count != 1 else ''})"
+        return output
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 @tool
 def search_schema(keyword: str) -> str:
     """Search all table and column names matching a keyword (case-insensitive). Useful for finding which table has a specific column."""
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        result = execute_sql(
+            """
             SELECT table_name, column_name, data_type
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND (lower(column_name) LIKE lower(%s) OR lower(table_name) LIKE lower(%s))
             ORDER BY table_name, ordinal_position
-        """, (f"%{keyword}%", f"%{keyword}%"))
-        rows = cur.fetchall()
-        if not rows:
+            """,
+            (f"%{keyword}%", f"%{keyword}%"),
+        )
+        if not result.rows:
             return f"No tables or columns matching '{keyword}' found."
         lines = [f"Matches for '{keyword}':"]
-        for row in rows:
+        for row in result.rows:
             lines.append(f"  {row[0]}.{row[1]} ({row[2]})")
         return "\n".join(lines)
-    finally:
-        conn.close()
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 @tool
@@ -150,29 +142,27 @@ def get_table_stats(table_name: str) -> str:
     if not table_name.replace("_", "").replace(".", "").isalnum():
         return "Invalid table name."
 
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
         # Row count estimate (fast)
-        cur.execute("""
-            SELECT reltuples::bigint AS estimate
-            FROM pg_class
-            WHERE relname = %s
-        """, (table_name,))
-        row_est = cur.fetchone()
-        row_count = row_est[0] if row_est else "unknown"
+        r1 = execute_sql(
+            "SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = %s",
+            (table_name,),
+        )
+        row_count = r1.rows[0][0] if r1.rows else "unknown"
 
         # Table size
-        cur.execute("SELECT pg_size_pretty(pg_total_relation_size(%s))", (table_name,))
-        size = cur.fetchone()[0]
+        r2 = execute_sql(
+            "SELECT pg_size_pretty(pg_total_relation_size(%s))",
+            (table_name,),
+        )
+        size = r2.rows[0][0] if r2.rows else "unknown"
 
         # Index count
-        cur.execute("""
-            SELECT count(*) FROM pg_indexes
-            WHERE tablename = %s
-        """, (table_name,))
-        index_count = cur.fetchone()[0]
+        r3 = execute_sql(
+            "SELECT count(*) FROM pg_indexes WHERE tablename = %s",
+            (table_name,),
+        )
+        index_count = r3.rows[0][0] if r3.rows else 0
 
         return (
             f"Stats for '{table_name}':\n"
@@ -180,30 +170,27 @@ def get_table_stats(table_name: str) -> str:
             f"  Total size: {size}\n"
             f"  Indexes: {index_count}"
         )
-    except Exception as e:
-        return f"Error: {e}"
-    finally:
-        conn.close()
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 @tool
 def get_db_info() -> str:
     """Get database info: PostgreSQL version, database name, current user, DB size, and uptime."""
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT version()")
-        version = cur.fetchone()[0]
+        r1 = execute_sql("SELECT version()")
+        version = r1.rows[0][0] if r1.rows else "N/A"
 
-        cur.execute("SELECT current_database(), current_user")
-        db_name, db_user = cur.fetchone()
+        r2 = execute_sql("SELECT current_database(), current_user")
+        db_name, db_user = r2.rows[0] if r2.rows else ("N/A", "N/A")
 
-        cur.execute("SELECT pg_size_pretty(pg_database_size(current_database()))")
-        db_size = cur.fetchone()[0]
+        r3 = execute_sql("SELECT pg_size_pretty(pg_database_size(current_database()))")
+        db_size = r3.rows[0][0] if r3.rows else "N/A"
 
-        cur.execute("SELECT now() - pg_postmaster_start_time()")
-        uptime = cur.fetchone()[0]
+        r4 = execute_sql("SELECT now() - pg_postmaster_start_time()")
+        uptime = r4.rows[0][0] if r4.rows else "N/A"
 
         return (
             f"Database Info:\n"
@@ -213,20 +200,18 @@ def get_db_info() -> str:
             f"  Size: {db_size}\n"
             f"  Uptime: {uptime}"
         )
-    except Exception as e:
-        return f"Error: {e}"
-    finally:
-        conn.close()
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 @tool
 def get_foreign_keys(table_name: str) -> str:
     """List all foreign key relationships for a table."""
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute("""
+        result = execute_sql(
+            """
             SELECT
                 tc.constraint_name,
                 kcu.column_name,
@@ -240,33 +225,27 @@ def get_foreign_keys(table_name: str) -> str:
             WHERE tc.constraint_type = 'FOREIGN KEY'
               AND tc.table_name = %s
             ORDER BY tc.constraint_name
-        """, (table_name,))
-        rows = cur.fetchall()
-        if not rows:
+            """,
+            (table_name,),
+        )
+        if not result.rows:
             return f"No foreign keys found for table '{table_name}'."
         lines = [f"Foreign keys for '{table_name}':"]
-        for row in rows:
+        for row in result.rows:
             lines.append(f"  {row[1]} → {row[2]}.{row[3]} (constraint: {row[0]})")
         return "\n".join(lines)
-    except Exception as e:
-        return f"Error: {e}"
-    finally:
-        conn.close()
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 @tool
 def explain_query(sql: str) -> str:
     """Run EXPLAIN (FORMAT JSON) on a query and return the execution plan summary."""
-    is_safe, reason = validate_read_only_sql(sql)
-    if not is_safe:
-        return f"⚠ Safety Guard: Blocked. {reason}"
-
-    db = get_db()
-    conn = db.get_connection()
     try:
-        cur = conn.cursor()
-        cur.execute(f"EXPLAIN (FORMAT JSON) {sql}")
-        plan = cur.fetchone()[0]
+        result = execute_sql(f"EXPLAIN (FORMAT JSON) {sql}")
+        plan = result.rows[0][0] if result.rows else None
         if isinstance(plan, list) and plan:
             plan_data = plan[0].get("Plan", {})
             lines = ["Query Plan Summary:"]
@@ -279,18 +258,18 @@ def explain_query(sql: str) -> str:
                 lines.append(f"  Sub-plans: {len(plan_data['Plans'])}")
             lines.append(f"\nFull plan:\n{json.dumps(plan, indent=2)}")
             return "\n".join(lines)
-        return json.dumps(plan, indent=2)
-    except Exception as e:
-        return f"Error: {e}"
-    finally:
-        conn.close()
+        return json.dumps(plan, indent=2) if plan else "No plan returned."
+    except SQLSafetyError as e:
+        return f"Blocked: {e}"
+    except SQLExecutionError as e:
+        return f"DB Error: {e}"
 
 
 # All tools list for agent registration
 ALL_TOOLS = [
     list_tables,
     get_table_schema,
-    execute_sql,
+    run_query,
     get_table_sample,
     search_schema,
     get_table_stats,

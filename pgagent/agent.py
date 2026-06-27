@@ -1,7 +1,7 @@
 """Agent setup: LLM initialization, tool registration, invocation."""
 
 import warnings
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from langchain_core._api.deprecation import LangChainPendingDeprecationWarning
 

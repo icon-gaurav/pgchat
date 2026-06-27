@@ -178,8 +178,22 @@ Contributions are welcome! Here's how:
 1. Fork the repo
 2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Make your changes
-4. Run tests (if applicable)
-5. Submit a pull request
+4. Run tests: `python -m pytest tests/ -v`
+5. Verify the single-gateway constraint (see below)
+6. Submit a pull request
+
+### Single SQL Gateway Constraint
+
+All SQL execution in this project goes through **one function**: `execute_sql()` in `pgagent/db.py`. No other file may call `cursor.execute()` or `conn.execute()` directly.
+
+To verify this constraint is intact, run:
+
+```bash
+grep -rn "cursor\.execute\|cur\.execute\|conn\.execute" . --include="*.py"
+```
+
+The output must show exactly **one result**: `db.py`, inside the `execute_sql` function.
+Any other result is a bug.
 
 ### Development Setup
 
