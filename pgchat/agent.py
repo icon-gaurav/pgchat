@@ -1,6 +1,7 @@
 """Agent setup: LLM initialization, tool registration, invocation."""
 
 import warnings
+from datetime import datetime
 from typing import Any, Optional, cast
 
 from langchain_core._api.deprecation import LangChainPendingDeprecationWarning
@@ -20,6 +21,8 @@ from pgchat.tools import ALL_TOOLS
 
 SYSTEM_PROMPT = """You are PGChat, an expert PostgreSQL database assistant. You have access to tools to inspect and query the connected database.
 
+Current date and time: {current_time}
+
 Guidelines:
 - Use the SCHEMA SNAPSHOT below to answer questions about tables and columns — do NOT call list_tables or get_table_schema unless the user explicitly asks to refresh.
 - Prefer short, precise answers. When showing data, summarize it unless the user asks for raw output.
@@ -34,12 +37,16 @@ Guidelines:
 
 
 def build_system_message(schema_cache: Optional[SchemaCache] = None) -> SystemMessage:
-    """Build the system message with schema context injected."""
+    """Build the system message with schema context and current time injected."""
     if schema_cache:
         schema_text = schema_cache.to_system_prompt_text()
     else:
         schema_text = "(No schema information available. Use list_tables and get_table_schema to explore.)"
-    return SystemMessage(content=SYSTEM_PROMPT.format(schema_context=schema_text))
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S (%A)")
+    return SystemMessage(content=SYSTEM_PROMPT.format(
+        schema_context=schema_text,
+        current_time=current_time,
+    ))
 
 
 def create_llm(config: Config):
