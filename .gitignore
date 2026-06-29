@@ -20,10 +20,10 @@ env/
 # Environment
 .env
 
-# Sessions (optional: keep if you want to preserve history)
-# sessions/*.json
+# Sessions
+sessions/
+*.json
 
 # OS
 Thumbs.db
 .DS_Store
-

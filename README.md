@@ -1,216 +1,143 @@
-# PG Agent 🐘🤖
+# PGChat 🐘
 
-An AI-powered PostgreSQL assistant that lives in your terminal. Ask questions about your database in natural language, explore schemas, run queries, and get intelligent insights — all powered by local LLMs (Ollama) or Anthropic Claude.
+> Chat with your PostgreSQL database using natural language. Powered by local LLMs via Ollama or Claude by Anthropic.
 
-<!-- screenshot -->
+<!-- Add a demo GIF here -->
 
-## ✨ Features
+## Features
 
-- **Natural language SQL** — Ask questions like "show me the top 10 customers by revenue" and get real results
-- **Schema exploration** — Automatically discovers tables, columns, relationships, and statistics
-- **Read-only safety** — SQL safety guard blocks any destructive queries (INSERT, UPDATE, DELETE, DROP, etc.)
-- **Persistent sessions** — Conversations are saved and can be resumed later
-- **Beautiful CLI** — Rich-powered UI with syntax-highlighted SQL, formatted tables, and status spinners
-- **Dual LLM backend** — Use local Ollama models or Anthropic Claude
-- **Session memory** — Auto-summarizes long conversations to maintain context
+- **Natural language to SQL** — just ask questions about your data
+- **Beautiful terminal UI** built with Rich
+- **Persistent named sessions** with conversation memory
+- **Schema cached at startup** — no redundant fetches mid-conversation
+- **Single SQL execution gateway** with read-only safety enforcement
+- **Supports Ollama** (local, private) **and Anthropic Claude** as backends
+- **pip installable** — one command to get started
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- PostgreSQL database
-- [Ollama](https://ollama.ai) running locally (or Anthropic API key)
-
-### Install
+## Quick Start
 
 ```bash
-git clone https://github.com/gauravbytes/pgagent.git
-cd pgagent
-pip install .
+pip install pgchat
+pgchat
 ```
 
-### First Run
+On first run, a setup wizard asks for your DB connection and preferred model.
+
+## Installation
+
+### From PyPI
 
 ```bash
-pgagent
+pip install pgchat
 ```
 
-On first run, PGAgent will launch a configuration wizard asking for your database connection details and LLM preferences. These are saved to a local `.env` file.
-
-Alternatively, configure manually:
+### From source
 
 ```bash
-cp .env.example .env
-# Edit .env with your settings
-pgagent
+git clone https://github.com/icon-gaurav/postgres-agent
+cd postgres-agent
+pip install -e .
 ```
 
-## 🔧 Configuration
+## Backends
 
-### Config Wizard
+### Ollama (default — local and private)
+
+Install Ollama from [ollama.com](https://ollama.com), pull a model, then run pgchat.
+
+Recommended models: `qwen2.5:7b`, `llama3.1:8b`, `mistral:7b`
 
 ```bash
-pgagent --config
+ollama pull qwen2.5:7b
+pgchat --model qwen2.5:7b
 ```
-
-This launches an interactive setup wizard that prompts for:
-- PostgreSQL host, port, database, user, password
-- LLM model name
-- Backend choice (ollama/anthropic)
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PGAGENT_DB_HOST` | `localhost` | PostgreSQL host |
-| `PGAGENT_DB_PORT` | `5432` | PostgreSQL port |
-| `PGAGENT_DB_DATABASE` | `postgres` | Database name |
-| `PGAGENT_DB_USER` | `postgres` | Database user |
-| `PGAGENT_DB_PASSWORD` | | Database password |
-| `DATABASE_URL` | | Full connection URL (overrides individual fields) |
-| `PGAGENT_MODEL` | `qwen2.5:7b` | LLM model name |
-| `PGAGENT_BACKEND` | `ollama` | LLM backend: `ollama` or `anthropic` |
-| `ANTHROPIC_API_KEY` | | Required for Anthropic backend |
-| `PGAGENT_SHOW_TOOL_CALLS` | `false` | Show raw tool calls in output |
-
-## 📋 CLI Flags
-
-```
-pgagent                              # Start interactive chat
-pgagent --config                     # Run connection setup wizard
-pgagent --db-url <url>               # Connect using a DATABASE_URL
-pgagent --model <name>               # Override LLM model
-pgagent --backend ollama|anthropic   # Choose LLM backend
-pgagent --session <name>             # Start in a specific session
-pgagent --show-tool-calls            # Show raw tool call details
-pgagent --version                    # Show version
-
-pgagent sessions list                # List all saved sessions
-pgagent sessions delete <name>       # Delete a session
-pgagent sessions export <name>       # Export session as markdown
-```
-
-## 💬 In-Chat Commands
-
-While chatting with the agent, you can use these commands:
-
-| Command | Description |
-|---------|-------------|
-| `/sessions` | List all saved sessions with timestamps |
-| `/new` | Start a fresh session |
-| `/resume <name>` | Switch to a different session |
-| `/clear` | Clear current session history |
-| `/export` | Export current session as markdown |
-| `/history` | Show last 10 turns nicely formatted |
-| `/help` | Show available commands |
-| `exit` | Quit PGAgent |
-
-## 🧠 LLM Backends
-
-### Ollama (Default — Local)
-
-PGAgent uses Ollama for local LLM inference by default:
-
-1. Install [Ollama](https://ollama.ai)
-2. Pull a model: `ollama pull qwen2.5:7b`
-3. Run PGAgent — it connects to Ollama automatically
 
 ### Anthropic Claude
 
-To use Claude instead:
-
-1. Set `ANTHROPIC_API_KEY` in your `.env`
-2. Run with: `pgagent --backend anthropic --model claude-haiku-3`
-
-Or set in `.env`:
+```bash
+export ANTHROPIC_API_KEY=your_key
+pgchat --backend anthropic --model claude-haiku-3
 ```
-PGAGENT_BACKEND=anthropic
-PGAGENT_MODEL=claude-haiku-3
+
+Or set in your `.env`:
+
+```
+PGCHAT_BACKEND=anthropic
+PGCHAT_MODEL=claude-haiku-3
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-## 💾 Sessions & Memory
+## CLI Reference
 
-### How Sessions Work
+```
+pgchat                              Start interactive chat (default session)
+pgchat --config                     Re-run connection setup wizard
+pgchat --db-url <url>               Connect via DATABASE_URL
+pgchat --model <name>               Override LLM model
+pgchat --backend ollama|anthropic   Choose LLM backend
+pgchat --session <name>             Open a named session
+pgchat --show-tool-calls            Show raw tool call/response blocks
+pgchat --version                    Show version
 
-- Each conversation is a **session** stored as a JSON file in `sessions/`
-- Sessions track: name, timestamps, model, database, and full message history
-- On startup, you're prompted to create a new session or resume an existing one
-- Sessions auto-save after every AI response
-
-### Conversation Summarization
-
-When a session exceeds 20 turns, PGAgent automatically:
-1. Asks the LLM to summarize the conversation so far
-2. Trims older messages, keeping the summary for context
-3. This prevents context window overflow while maintaining conversation history
-
-## 🔒 Safety
-
-PGAgent includes a SQL safety guard that:
-- Only allows `SELECT`, `WITH`, `SHOW`, and `EXPLAIN` queries
-- Blocks all DML (`INSERT`, `UPDATE`, `DELETE`) and DDL (`CREATE`, `DROP`, `ALTER`)
-- Prevents multi-statement injection
-- Strips comments and string literals before validation
-- Blocks `SELECT INTO` (creates tables)
-
-## 🛠️ Available Tools
-
-The agent has access to these database tools:
-
-| Tool | Description |
-|------|-------------|
-| `list_tables` | List all tables in the public schema |
-| `get_table_schema` | Get columns, types, nullability for a table |
-| `execute_sql` | Run read-only SQL queries |
-| `get_table_sample` | Preview rows from a table |
-| `search_schema` | Find tables/columns matching a keyword |
-| `get_table_stats` | Row count, size, index count for a table |
-| `get_db_info` | PostgreSQL version, size, uptime |
-| `get_foreign_keys` | List FK relationships for a table |
-| `explain_query` | Get EXPLAIN plan for a query |
-
-## 🤝 Contributing
-
-Contributions are welcome! Here's how:
-
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make your changes
-4. Run tests: `python -m pytest tests/ -v`
-5. Verify the single-gateway constraint (see below)
-6. Submit a pull request
-
-### Single SQL Gateway Constraint
-
-All SQL execution in this project goes through **one function**: `execute_sql()` in `pgagent/db.py`. No other file may call `cursor.execute()` or `conn.execute()` directly.
-
-To verify this constraint is intact, run:
-
-```bash
-grep -rn "cursor\.execute\|cur\.execute\|conn\.execute" . --include="*.py"
+pgchat sessions list                List all saved sessions
+pgchat sessions delete <name>       Delete a session
+pgchat sessions export <name>       Export session as markdown
 ```
 
-The output must show exactly **one result**: `db.py`, inside the `execute_sql` function.
-Any other result is a bug.
+## In-Chat Commands
+
+| Command | Description |
+|---------|-------------|
+| `/sessions` | List all saved sessions |
+| `/new` | Start a fresh session |
+| `/resume <name>` | Switch to a different session |
+| `/clear` | Clear current session history |
+| `/history` | Show last 10 turns |
+| `/export` | Export session as markdown |
+| `/refresh-schema` | Re-fetch schema from the database |
+| `/help` | Show available commands |
+| `exit` | Quit PGChat |
+
+## How Memory Works
+
+Sessions are saved as JSON files in `sessions/`.
+
+Schema is fetched once at startup and injected as context — the agent knows your full database structure before you ask your first question.
+
+When a session exceeds 20 turns, older messages are summarized automatically to keep context tight.
+
+## Safety
+
+All SQL runs through a single gateway function with a read-only safety check. Only `SELECT`, `WITH`, `SHOW`, and `EXPLAIN` queries are allowed.
+
+`cursor.execute()` exists exactly once in the codebase — inside `db.py`.
+
+## Contributing
+
+PRs welcome. Before submitting, verify the single-gateway constraint:
+
+```bash
+grep -rn "cursor\.execute\|conn\.execute" . --include="*.py"
+```
+
+Must return exactly one result: inside `db.py`.
 
 ### Development Setup
 
 ```bash
-git clone https://github.com/gauravbytes/pgagent.git
-cd pgagent
+git clone https://github.com/icon-gaurav/postgres-agent
+cd postgres-agent
 python -m venv .venv
-.venv\Scripts\activate  # Windows
+.venv\Scripts\activate    # Windows
 # source .venv/bin/activate  # Linux/Mac
 pip install -e .
+pytest
 ```
 
-## 📄 License
+## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
 Built with ❤️ by [Gaurav](https://gauravbytes.dev)
-

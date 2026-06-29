@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
-from pgagent import __version__, __author__
+from pgchat import __version__, __author__
 
 # Custom theme
 THEME = Theme({
@@ -34,14 +34,14 @@ def print_banner(
 ) -> None:
     """Print the startup banner."""
     title_art = Text()
-    title_art.append("╔═══════════════════════════════════════╗\n", style="bold cyan")
-    title_art.append("║        ", style="bold cyan")
-    title_art.append("P G   A G E N T", style="bold white")
-    title_art.append("            ║\n", style="bold cyan")
-    title_art.append("║   ", style="bold cyan")
+    title_art.append("╔═══════════════════════════════════════════╗\n", style="bold cyan")
+    title_art.append("║               ", style="bold cyan")
+    title_art.append("P G   C H A T", style="bold white")
+    title_art.append("               ║\n", style="bold cyan")
+    title_art.append("║          ", style="bold cyan")
     title_art.append("PostgreSQL AI Assistant", style="cyan")
-    title_art.append("        ║\n", style="bold cyan")
-    title_art.append("╚═══════════════════════════════════════╝", style="bold cyan")
+    title_art.append("          ║\n", style="bold cyan")
+    title_art.append("╚═══════════════════════════════════════════╝", style="bold cyan")
 
     info_lines = Text()
     info_lines.append(f"  Version: ", style="dim")
@@ -227,8 +227,7 @@ def print_help() -> None:
   [cyan]/history[/cyan]         — Show last 10 turns
   [cyan]/refresh-schema[/cyan]  — Re-fetch database schema from server
   [cyan]/help[/cyan]            — Show this help
-  [cyan]exit[/cyan]             — Quit PGAgent
+  [cyan]exit[/cyan]             — Quit PGChat
 """
     console.print(Panel(help_text.strip(), title="Help", border_style="cyan"))
-
 

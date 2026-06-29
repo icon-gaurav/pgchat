@@ -1,8 +1,8 @@
-"""Tests for pgagent.safety — SQL read-only validation."""
+"""Tests for pgchat.safety — SQL read-only validation."""
 
 import pytest
 
-from pgagent.safety import normalize_sql_for_safety, validate_read_only_sql
+from pgchat.safety import normalize_sql_for_safety, validate_read_only_sql
 
 
 # ──────────────────────────────────────────────
@@ -226,4 +226,3 @@ class TestValidateEdgeCases:
         is_safe, reason = validate_read_only_sql("EXPLAIN ANALYZE SELECT 1")
         assert is_safe is False
         assert "ANALYZE" in reason
-

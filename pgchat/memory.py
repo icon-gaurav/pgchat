@@ -13,7 +13,7 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from pgagent.config import SESSIONS_DIR
+from pgchat.config import SESSIONS_DIR
 
 
 def _ensure_sessions_dir() -> None:

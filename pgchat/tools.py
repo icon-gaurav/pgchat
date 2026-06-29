@@ -7,7 +7,7 @@ import json
 
 from langchain_core.tools import tool
 
-from pgagent.db import execute_sql, SQLSafetyError, SQLExecutionError
+from pgchat.db import execute_sql, SQLSafetyError, SQLExecutionError
 
 
 @tool

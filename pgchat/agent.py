@@ -14,11 +14,11 @@ warnings.filterwarnings(
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
-from pgagent.config import Config
-from pgagent.schema_cache import SchemaCache
-from pgagent.tools import ALL_TOOLS
+from pgchat.config import Config
+from pgchat.schema_cache import SchemaCache
+from pgchat.tools import ALL_TOOLS
 
-SYSTEM_PROMPT = """You are PGAgent, an expert PostgreSQL database assistant. You have access to tools to inspect and query the connected database.
+SYSTEM_PROMPT = """You are PGChat, an expert PostgreSQL database assistant. You have access to tools to inspect and query the connected database.
 
 Guidelines:
 - Use the SCHEMA SNAPSHOT below to answer questions about tables and columns — do NOT call list_tables or get_table_schema unless the user explicitly asks to refresh.
@@ -128,3 +128,4 @@ def extract_tool_responses(messages: list[BaseMessage]) -> list[dict[str, str]]:
                 "content": msg.content if isinstance(msg.content, str) else str(msg.content),
             })
     return responses
+

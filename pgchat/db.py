@@ -16,8 +16,8 @@ from typing import Optional
 
 import psycopg2
 
-from pgagent.config import Config
-from pgagent.safety import validate_read_only_sql
+from pgchat.config import Config
+from pgchat.safety import validate_read_only_sql
 
 
 # ──────────────────────────────────────────────
@@ -182,3 +182,4 @@ def invalidate_cache() -> None:
     """Force refresh of schema cache on next access."""
     global _schema_cache
     _schema_cache = None
+

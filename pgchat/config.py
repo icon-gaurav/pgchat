@@ -1,7 +1,7 @@
 """Configuration management: dataclass, .env loading, interactive wizard."""
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -62,16 +62,16 @@ def load_config(
     load_dotenv(ENV_FILE)
 
     cfg = Config(
-        db_host=os.getenv("PGAGENT_DB_HOST", "localhost"),
-        db_port=int(os.getenv("PGAGENT_DB_PORT", "5432")),
-        db_database=os.getenv("PGAGENT_DB_DATABASE", "postgres"),
-        db_user=os.getenv("PGAGENT_DB_USER", "postgres"),
-        db_password=os.getenv("PGAGENT_DB_PASSWORD", ""),
+        db_host=os.getenv("DB_HOST", "localhost"),
+        db_port=int(os.getenv("DB_PORT", "5432")),
+        db_database=os.getenv("DB_NAME", "postgres"),
+        db_user=os.getenv("DB_USER", "postgres"),
+        db_password=os.getenv("DB_PASSWORD", ""),
         database_url=os.getenv("DATABASE_URL"),
-        backend=os.getenv("PGAGENT_BACKEND", "ollama"),
-        model=os.getenv("PGAGENT_MODEL", "qwen2.5:7b"),
+        backend=os.getenv("PGCHAT_BACKEND", "ollama"),
+        model=os.getenv("PGCHAT_MODEL", "qwen2.5:7b"),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-        show_tool_calls=os.getenv("PGAGENT_SHOW_TOOL_CALLS", "").lower() in ("1", "true", "yes"),
+        show_tool_calls=os.getenv("PGCHAT_SHOW_TOOL_CALLS", "").lower() in ("1", "true", "yes"),
     )
 
     # CLI overrides
@@ -91,9 +91,9 @@ def load_config(
         _apply_url_fields(cfg)
 
     # If anthropic key is set and backend wasn't explicitly specified, auto-detect
-    if cfg.anthropic_api_key and not backend and not os.getenv("PGAGENT_BACKEND"):
+    if cfg.anthropic_api_key and not backend and not os.getenv("PGCHAT_BACKEND"):
         cfg.backend = "anthropic"
-        if not model and not os.getenv("PGAGENT_MODEL"):
+        if not model and not os.getenv("PGCHAT_MODEL"):
             cfg.model = "claude-haiku-3"
 
     return cfg
@@ -123,7 +123,7 @@ def run_config_wizard() -> None:
     from rich.prompt import Prompt, IntPrompt
 
     console = Console()
-    console.print("\n[bold cyan]🔧 PGAgent Configuration Wizard[/bold cyan]\n")
+    console.print("\n[bold cyan]🔧 PGChat Configuration Wizard[/bold cyan]\n")
 
     host = Prompt.ask("PostgreSQL host", default="localhost")
     port = IntPrompt.ask("PostgreSQL port", default=5432)
@@ -137,14 +137,14 @@ def run_config_wizard() -> None:
     if backend == "anthropic":
         anthropic_key = Prompt.ask("Anthropic API Key", password=True, default="")
 
-    env_content = f"""# PGAgent Configuration
-PGAGENT_DB_HOST={host}
-PGAGENT_DB_PORT={port}
-PGAGENT_DB_DATABASE={database}
-PGAGENT_DB_USER={user}
-PGAGENT_DB_PASSWORD={password}
-PGAGENT_MODEL={model}
-PGAGENT_BACKEND={backend}
+    env_content = f"""# PGChat Configuration
+DB_HOST={host}
+DB_PORT={port}
+DB_NAME={database}
+DB_USER={user}
+DB_PASSWORD={password}
+PGCHAT_MODEL={model}
+PGCHAT_BACKEND={backend}
 """
     if anthropic_key:
         env_content += f"ANTHROPIC_API_KEY={anthropic_key}\n"

@@ -1,4 +1,4 @@
-"""Click-based CLI entry point for PGAgent."""
+"""Click-based CLI entry point for PGChat."""
 
 import sys
 from datetime import datetime
@@ -7,16 +7,16 @@ from typing import Optional
 
 import click
 
-from pgagent import __version__
-from pgagent.config import (
+from pgchat import __version__
+from pgchat.config import (
     Config,
     ENV_FILE,
     load_config,
     run_config_wizard,
 )
-from pgagent.db import init_db, test_connection
-from pgagent.schema_cache import SchemaCache, build_schema_cache
-from pgagent.memory import (
+from pgchat.db import init_db, test_connection
+from pgchat.schema_cache import SchemaCache, build_schema_cache
+from pgchat.memory import (
     build_summary_prompt,
     delete_session,
     deserialize_messages,
@@ -26,7 +26,7 @@ from pgagent.memory import (
     save_session,
     should_summarize,
 )
-from pgagent.ui import (
+from pgchat.ui import (
     console,
     get_user_input,
     print_agent_response,
@@ -52,10 +52,10 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 @click.option("--backend", default=None, type=click.Choice(["ollama", "anthropic"]), help="LLM backend.")
 @click.option("--session", "session_name", default=None, help="Start with a named session.")
 @click.option("--show-tool-calls", is_flag=True, help="Show raw tool call/response details.")
-@click.version_option(__version__, prog_name="pgagent")
+@click.version_option(__version__, prog_name="pgchat")
 @click.pass_context
 def main(ctx, run_config, db_url, model, backend, session_name, show_tool_calls):
-    """PGAgent - An AI-powered PostgreSQL assistant CLI."""
+    """PGChat - Chat with your PostgreSQL database using natural language."""
     ctx.ensure_object(dict)
 
     if run_config:
@@ -99,7 +99,7 @@ def main(ctx, run_config, db_url, model, backend, session_name, show_tool_calls)
 
     if not success:
         print_error(f"Connection failed: {msg}")
-        console.print("[dim]Run pgagent --config to reconfigure.[/dim]")
+        console.print("[dim]Run pgchat --config to reconfigure.[/dim]")
         sys.exit(1)
 
     print_success(f"Connected to PostgreSQL")
@@ -221,7 +221,7 @@ def _generate_session_name() -> str:
 
 def _chat_loop(cfg: Config, schema_cache: Optional[SchemaCache], session_name: str) -> None:
     """Main interactive chat loop."""
-    from pgagent.agent import (
+    from pgchat.agent import (
         build_system_message,
         create_pg_agent,
         extract_response_text,
@@ -389,7 +389,7 @@ def _handle_command(
         else:
             print_error("Failed to export session.")
     elif cmd == "/history":
-        from pgagent.memory import _serialize_message
+        from pgchat.memory import _serialize_message
         serialized = [_serialize_message(m) for m in chat_history]
         print_history(serialized)
     elif cmd == "/refresh-schema":
@@ -437,7 +437,7 @@ def _do_summarize(
     schema_cache: Optional[SchemaCache],
 ) -> None:
     """Summarize conversation when it gets too long."""
-    from pgagent.agent import invoke_agent, extract_response_text
+    from pgchat.agent import invoke_agent, extract_response_text
 
     prompt = build_summary_prompt(chat_history)
     summary_messages = [HumanMessage(content=prompt)]

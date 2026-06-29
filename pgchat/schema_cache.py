@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from pgagent.db import execute_sql, SQLSafetyError, SQLExecutionError
+from pgchat.db import execute_sql, SQLSafetyError, SQLExecutionError
 
 
 @dataclass

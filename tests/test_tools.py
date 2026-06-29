@@ -1,4 +1,4 @@
-"""Tests for pgagent.tools — database tool functions.
+"""Tests for pgchat.tools — database tool functions.
 
 All tools now go through the db.execute_sql() gateway. We mock that single function.
 """
@@ -6,8 +6,8 @@ All tools now go through the db.execute_sql() gateway. We mock that single funct
 import pytest
 from unittest.mock import patch, MagicMock
 
-from pgagent.db import ExecutionResult, SQLSafetyError, SQLExecutionError
-from pgagent.tools import (
+from pgchat.db import ExecutionResult, SQLSafetyError, SQLExecutionError
+from pgchat.tools import (
     list_tables,
     get_table_schema,
     run_query,
@@ -28,7 +28,7 @@ from pgagent.tools import (
 @pytest.fixture
 def mock_execute():
     """Mock the db.execute_sql gateway function."""
-    with patch("pgagent.tools.execute_sql") as mock_fn:
+    with patch("pgchat.tools.execute_sql") as mock_fn:
         yield mock_fn
 
 
