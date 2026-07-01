@@ -34,8 +34,8 @@ pip install pgchat
 ### From source
 
 ```bash
-git clone https://github.com/icon-gaurav/postgres-agent
-cd postgres-agent
+git clone https://github.com/icon-gaurav/pgchat.git
+cd pgchat
 pip install -e .
 ```
 
@@ -125,8 +125,8 @@ Must return exactly one result: inside `db.py`.
 ### Development Setup
 
 ```bash
-git clone https://github.com/icon-gaurav/postgres-agent
-cd postgres-agent
+git clone https://github.com/icon-gaurav/pgchat.git
+cd pgchat
 python -m venv .venv
 .venv\Scripts\activate    # Windows
 # source .venv/bin/activate  # Linux/Mac
