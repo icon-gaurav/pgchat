@@ -34,9 +34,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/icon-gaurav/postgres-agent"
-Repository = "https://github.com/icon-gaurav/postgres-agent"
-Issues = "https://github.com/icon-gaurav/postgres-agent/issues"
+Homepage = "https://github.com/icon-gaurav/pgchat"
+Repository = "https://github.com/icon-gaurav/pgchat.git"
+Issues = "https://github.com/icon-gaurav/pgchat/issues"
 
 [project.scripts]
 pgchat = "pgchat.cli:main"
