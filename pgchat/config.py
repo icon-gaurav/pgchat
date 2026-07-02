@@ -33,6 +33,7 @@ class Config:
 
     # UI
     show_tool_calls: bool = False
+    explain_queries: bool = True
 
     # Session
     session_name: Optional[str] = None
@@ -72,6 +73,7 @@ def load_config(
         model=os.getenv("PGCHAT_MODEL", "qwen2.5:7b"),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
         show_tool_calls=os.getenv("PGCHAT_SHOW_TOOL_CALLS", "").lower() in ("1", "true", "yes"),
+        explain_queries=os.getenv("PGCHAT_EXPLAIN_QUERIES", "true").lower() not in ("0", "false", "no"),
     )
 
     # CLI overrides

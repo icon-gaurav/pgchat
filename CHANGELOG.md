@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0] - 2026
+
+### Added
+
+- **Explain-before-execute**: Before running any SQL query, the agent generates a plain-English explanation of what the query does (tables involved, filters, expected result shape)
+- New config flag `PGCHAT_EXPLAIN_QUERIES` (default: `true`) to toggle explanations on/off
+- New module `pgchat/explain.py` with focused LLM call for query explanations
+- 13 new tests covering the explain feature
+
 ## [1.0.0] - 2025
 
 ### Added
