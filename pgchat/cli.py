@@ -105,6 +105,23 @@ def main(ctx, run_config, db_url, model, backend, session_name, show_tool_calls)
     print_success(f"Connected to PostgreSQL")
     console.print(f"  [dim]{msg.split(',')[0] if ',' in msg else msg[:60]}[/dim]")
 
+    # Test LLM connection
+    from pgchat.agent import check_llm_connection
+
+    with console.status("[cyan]Testing LLM connection...[/cyan]"):
+        llm_ok, llm_msg = check_llm_connection(cfg)
+
+    if not llm_ok:
+        print_error(f"LLM connection failed: {llm_msg}")
+        if cfg.backend == "ollama":
+            console.print("[dim]Ensure Ollama is running (ollama serve) and the model is pulled.[/dim]")
+        else:
+            console.print("[dim]Check your API key and network connection.[/dim]")
+        console.print("[dim]Run pgchat --config to reconfigure.[/dim]")
+        sys.exit(1)
+
+    print_success(f"LLM ready — {llm_msg}")
+
     # Load schema cache — fetched ONCE on startup
     schema_cache: Optional[SchemaCache] = None
     with console.status("[cyan]📦 Loading schema...[/cyan]"):
