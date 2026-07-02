@@ -112,6 +112,39 @@ All SQL runs through a single gateway function with a read-only safety check. On
 
 `cursor.execute()` exists exactly once in the codebase — inside `db.py`.
 
+## Explain-Before-Execute
+
+When `PGCHAT_EXPLAIN_QUERIES=true` (the default), PGChat generates a plain-English explanation of each SQL query before executing it. This helps you understand what the agent is doing without reading raw SQL.
+
+**Example interaction:**
+
+```
+You » show me top 5 customers by total order amount
+
+  ⚙  Calling run_query...
+
+╭─── 💡 Query Explanation ────────────────────────────────────────────────╮
+│ This query joins the customers and orders tables on customer_id,        │
+│ groups results by customer name, sums the order amounts per customer,   │
+│ and returns the top 5 customers with the highest total spend in         │
+│ descending order.                                                       │
+╰─────────────────────────────────────────────────────────────────────────╯
+
+╭─── 🤖 Agent ──────────────────────────────────── 14:32:07 ──╮
+│ Here are the top 5 customers by total order amount:          │
+│                                                              │
+│ | customer   | total_amount |                                │
+│ |------------|--------------|                                 │
+│ | Acme Corp  | $142,500     |                                │
+│ | Wayne Ent  | $98,200      |                                │
+│ | ...        | ...          |                                │
+╰──────────────────────────────────────────────────────────────╯
+```
+
+**Configuration:**
+- Set `PGCHAT_EXPLAIN_QUERIES=false` in `.env` to disable explanations
+- Explanations are non-blocking: if the LLM call fails, queries still execute normally
+
 ## Contributing
 
 PRs welcome. Before submitting, verify the single-gateway constraint:

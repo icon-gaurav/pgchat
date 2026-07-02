@@ -4,10 +4,40 @@ All SQL execution goes through db.execute_sql() — no direct cursor access.
 """
 
 import json
+import logging
+from typing import Optional
 
 from langchain_core.tools import tool
 
 from pgchat.db import execute_sql, SQLSafetyError, SQLExecutionError
+
+logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────
+# Explain-before-execute context
+# ──────────────────────────────────────────────
+# These are set before each invoke_agent() call so that run_query
+# can generate explanations with proper context. Module-level state
+# avoids modifying execute_sql() or the gateway.
+
+_explain_enabled: bool = True
+_explain_user_question: str = ""
+_explain_schema_context: str = ""
+_explain_config: Optional[object] = None
+
+
+def set_explain_context(
+    enabled: bool,
+    user_question: str = "",
+    schema_context: str = "",
+    config: Optional[object] = None,
+) -> None:
+    """Set the context for explain-before-execute. Called before each agent turn."""
+    global _explain_enabled, _explain_user_question, _explain_schema_context, _explain_config
+    _explain_enabled = enabled
+    _explain_user_question = user_question
+    _explain_schema_context = schema_context
+    _explain_config = config
 
 
 @tool
@@ -59,6 +89,24 @@ def get_table_schema(table_name: str) -> str:
 @tool
 def run_query(query: str) -> str:
     """Execute a read-only SQL query (SELECT/WITH/SHOW/EXPLAIN) and return results."""
+    # Explain-before-execute step (passive, non-blocking)
+    if _explain_enabled and query.strip():
+        try:
+            from pgchat.explain import explain_query
+            from pgchat.ui import print_query_explanation
+
+            explanation = explain_query(
+                sql_query=query,
+                user_question=_explain_user_question,
+                schema_context=_explain_schema_context,
+                config=_explain_config,
+            )
+            if explanation:
+                print_query_explanation(explanation)
+        except Exception as e:
+            # Explanation failure must never block query execution
+            logger.warning(f"Explain step failed (non-blocking): {e}")
+
     try:
         result = execute_sql(query)
         if not result.columns:

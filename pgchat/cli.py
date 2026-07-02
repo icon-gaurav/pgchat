@@ -41,6 +41,7 @@ from pgchat.ui import (
     print_tool_response,
     print_warning,
 )
+from pgchat.tools import set_explain_context
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
@@ -290,6 +291,15 @@ def _chat_loop(cfg: Config, schema_cache: Optional[SchemaCache], session_name: s
 
         # Add user message
         chat_history.append(HumanMessage(content=user_input))
+
+        # Set explain context for this turn (used by run_query tool)
+        schema_text = schema_cache.to_system_prompt_text() if schema_cache else ""
+        set_explain_context(
+            enabled=cfg.explain_queries,
+            user_question=user_input,
+            schema_context=schema_text,
+            config=cfg,
+        )
 
         # Invoke agent with spinner
         try:

@@ -110,6 +110,16 @@ def print_sql(sql: str) -> None:
     console.print(Panel(syntax, title="SQL", border_style="dim", padding=(0, 1)))
 
 
+def print_query_explanation(explanation: str) -> None:
+    """Display a plain-English explanation of a SQL query."""
+    console.print(Panel(
+        f"[italic]{explanation}[/italic]",
+        title="💡 Query Explanation",
+        border_style="green",
+        padding=(0, 1),
+    ))
+
+
 def print_query_results(columns: list[str], rows: list[tuple], total: int) -> None:
     """Render query results as a Rich table."""
     table = Table(show_header=True, header_style="bold magenta", row_styles=["", "dim"])
