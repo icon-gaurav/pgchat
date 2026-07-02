@@ -69,6 +69,49 @@ def create_llm(config: Config):
         return ChatOllama(model=config.model, temperature=0)
 
 
+def check_llm_connection(config: Config) -> tuple[bool, str]:
+    """
+    Test connectivity to the configured LLM backend.
+
+    Sends a minimal prompt and checks for a valid response.
+    Returns (success, message).
+    """
+    try:
+        llm = create_llm(config)
+        response = llm.invoke("Say OK")
+        # Check we got a non-empty response
+        content = response.content if hasattr(response, "content") else str(response)
+        if content and content.strip():
+            return True, f"{config.backend} ({config.model})"
+        return False, f"LLM returned empty response — model '{config.model}' may not be available"
+    except ImportError as e:
+        return False, f"Missing dependency: {e}"
+    except Exception as e:
+        err_msg = str(e)
+        # Provide user-friendly hints based on common error patterns
+        if config.backend == "ollama":
+            if "Connection refused" in err_msg or "ConnectError" in err_msg:
+                return False, (
+                    f"Cannot connect to Ollama. Is it running?\n"
+                    f"  Start with: ollama serve\n"
+                    f"  Error: {err_msg}"
+                )
+            if "model" in err_msg.lower() and "not found" in err_msg.lower():
+                return False, (
+                    f"Model '{config.model}' not found in Ollama.\n"
+                    f"  Pull it with: ollama pull {config.model}\n"
+                    f"  Error: {err_msg}"
+                )
+        elif config.backend == "anthropic":
+            if "401" in err_msg or "authentication" in err_msg.lower() or "api_key" in err_msg.lower():
+                return False, (
+                    f"Anthropic authentication failed. Check your API key.\n"
+                    f"  Set via: export ANTHROPIC_API_KEY=your_key\n"
+                    f"  Error: {err_msg}"
+                )
+        return False, f"LLM connection failed: {err_msg}"
+
+
 def create_pg_agent(config: Config):
     """Create and return the LangChain agent."""
     llm = create_llm(config)
