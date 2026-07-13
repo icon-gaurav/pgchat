@@ -233,7 +233,8 @@ def print_help() -> None:
   [cyan]/new[/cyan]             — Start a fresh session
   [cyan]/resume <name>[/cyan]   — Switch to a different session
   [cyan]/clear[/cyan]           — Clear current session history
-  [cyan]/export[/cyan]          — Export current session as markdown
+  [cyan]/export <fmt>[/cyan]    — Export last query result (csv or json)
+  [cyan]/export-session[/cyan]  — Export current session as markdown
   [cyan]/history[/cyan]         — Show last 10 turns
   [cyan]/refresh-schema[/cyan]  — Re-fetch database schema from server
   [cyan]/help[/cyan]            — Show this help
