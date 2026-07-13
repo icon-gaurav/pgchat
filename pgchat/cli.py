@@ -178,13 +178,93 @@ def _resolve_session(cfg: Config, session_name: Optional[str]) -> str:
     if session_name:
         return session_name
 
-    # Interactive session selection
     all_sessions = list_sessions()
     if not all_sessions:
         name = _generate_session_name()
         print_info(f"Starting new session: {name}")
         return name
 
+    # Try interactive picker, fall back to text-based selection
+    if sys.stdin.isatty():
+        try:
+            return _pick_session_interactive(all_sessions)
+        except Exception:
+            pass  # Fall through to text-based fallback
+
+    return _pick_session_text(all_sessions)
+
+
+def _format_session_choice(session: dict) -> str:
+    """Build a human-readable label for a session in the picker."""
+    name = session.get("name", "unknown")
+
+    # Timestamp
+    updated = session.get("updated_at", "")
+    time_label = ""
+    if updated:
+        try:
+            dt = datetime.fromisoformat(updated)
+            time_label = dt.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            time_label = updated[:16]
+
+    # Description: prefer summary, then first question, then nothing
+    desc = ""
+    summary = session.get("summary", "")
+    first_q = session.get("first_question", "")
+    if summary:
+        desc = summary[:60] + ("…" if len(summary) > 60 else "")
+    elif first_q:
+        desc = first_q[:60] + ("…" if len(first_q) > 60 else "")
+
+    turns = session.get("turn_count", 0)
+    parts = [name]
+    if time_label:
+        parts.append(time_label)
+    if desc:
+        parts.append(f"'{desc}'")
+    parts.append(f"{turns} turn{'s' if turns != 1 else ''}")
+    return "  —  ".join(parts)
+
+
+def _pick_session_interactive(all_sessions: list[dict]) -> str:
+    """Arrow-key navigable session picker using questionary."""
+    import questionary
+
+    NEW_SESSION_LABEL = "✨ Start new session"
+    choices = [NEW_SESSION_LABEL]
+    label_to_name: dict[str, str] = {}
+
+    for s in all_sessions:
+        label = _format_session_choice(s)
+        choices.append(label)
+        label_to_name[label] = s["name"]
+
+    console.print()
+    answer = questionary.select(
+        "Select a session:",
+        choices=choices,
+        use_arrow_keys=True,
+        use_jk_keys=False,
+    ).ask()
+
+    if answer is None:
+        # User pressed Ctrl+C / Esc
+        console.print("\n[dim]Cancelled. Goodbye! 👋[/dim]")
+        sys.exit(0)
+
+    if answer == NEW_SESSION_LABEL:
+        name = _generate_session_name()
+        print_info(f"Starting new session: {name}")
+        return name
+
+    session_name = label_to_name[answer]
+    print_info(f"Resuming session: {session_name}")
+    return session_name
+
+
+def _pick_session_text(all_sessions: list[dict]) -> str:
+    """Text-based fallback for non-interactive terminals."""
     console.print("\n[bold]Session Options:[/bold]")
     console.print("  [cyan][N][/cyan] New session")
     console.print("  [cyan][L][/cyan] List & resume a session")
@@ -368,8 +448,23 @@ def _handle_command(
         }
     elif cmd == "/resume":
         if not arg:
-            console.print("[yellow]Usage: /resume <session_name>[/yellow]")
-            return None
+            # Interactive session picker
+            resume_sessions = list_sessions()
+            if not resume_sessions:
+                console.print("[yellow]No saved sessions to resume.[/yellow]")
+                return None
+            try:
+                if sys.stdin.isatty():
+                    picked = _pick_session_interactive(resume_sessions)
+                else:
+                    console.print("[yellow]Usage: /resume <session_name>[/yellow]")
+                    return None
+            except SystemExit:
+                return None
+            except Exception:
+                console.print("[yellow]Usage: /resume <session_name>[/yellow]")
+                return None
+            arg = picked
         session_data = load_session(arg)
         if session_data:
             new_history = deserialize_messages(session_data)

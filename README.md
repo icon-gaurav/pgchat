@@ -90,13 +90,30 @@ pgchat sessions export <name>       Export session as markdown
 |---------|-------------|
 | `/sessions` | List all saved sessions |
 | `/new` | Start a fresh session |
-| `/resume <name>` | Switch to a different session |
+| `/resume <name>` | Switch to a different session (or pick interactively) |
 | `/clear` | Clear current session history |
 | `/history` | Show last 10 turns |
 | `/export` | Export session as markdown |
 | `/refresh-schema` | Re-fetch schema from the database |
 | `/help` | Show available commands |
 | `exit` | Quit PGChat |
+
+## Interactive Session Picker
+
+When you launch pgchat with existing sessions, an arrow-key navigable list lets you pick one:
+
+```
+? Select a session:
+❯ ✨ Start new session
+  session_20260710_143200  —  2026-07-10 14:32  —  'list all customers'  —  3 turns
+  session_20260709_091500  —  2026-07-09 09:15  —  'orders table analysis'  —  12 turns
+```
+
+Use ↑/↓ arrows to navigate, Enter to confirm. Press Ctrl+C or Esc to cancel cleanly.
+
+The same picker appears when you type `/resume` without a session name during a chat.
+
+In non-interactive environments (piped input, CI), pgchat falls back to the original text-based session selection automatically.
 
 ## How Memory Works
 
