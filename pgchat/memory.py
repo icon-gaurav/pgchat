@@ -31,16 +31,18 @@ def list_sessions() -> list[dict[str, Any]]:
     for f in sorted(SESSIONS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
+            messages = data.get("messages", [])
+            human_msgs = [m for m in messages if m.get("role") == "human"]
+            first_question = human_msgs[0].get("content", "")[:80] if human_msgs else ""
             sessions.append({
                 "name": data.get("name", f.stem),
                 "created_at": data.get("created_at", ""),
                 "updated_at": data.get("updated_at", ""),
                 "model": data.get("model", ""),
                 "db_label": data.get("db_label", ""),
-                "turn_count": len([
-                    m for m in data.get("messages", [])
-                    if m.get("role") == "human"
-                ]),
+                "summary": data.get("summary", ""),
+                "first_question": first_question,
+                "turn_count": len(human_msgs),
             })
         except (json.JSONDecodeError, OSError):
             continue
