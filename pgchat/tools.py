@@ -341,6 +341,17 @@ def export_results_tool(format: str = "csv") -> str:
     return export_results(result, format)
 
 
+@tool
+def generate_chart_tool(chart_type: str = "auto") -> str:
+    """Use this tool when the user asks to visualize, chart, plot, or graph the most recent query results. Do not use this tool to run new queries — only to chart results that have already been fetched in this session. The chart_type parameter accepts: "auto", "bar", "line", "scatter", or "pie". Default to "auto" if the user does not specify a chart type."""
+    from pgchat.chart import generate_chart
+
+    result = get_last_query_result()
+    if result is None:
+        return "No query results available to chart yet — run a query first."
+    return generate_chart(result, chart_type)
+
+
 # All tools list for agent registration
 ALL_TOOLS = [
     list_tables,
@@ -353,5 +364,6 @@ ALL_TOOLS = [
     get_foreign_keys,
     explain_query,
     export_results_tool,
+    generate_chart_tool,
 ]
 

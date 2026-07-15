@@ -39,6 +39,12 @@ Exporting results:
 - The tool accepts a "format" parameter ("csv" or "json"). If the user does not specify a format, default to "csv".
 - If no query has been run yet in the session, still call export_results_tool — it will handle telling the user there is nothing to export.
 
+Charting / visualization:
+- If the user asks to visualize, chart, plot, or graph query results — in any phrasing (e.g., "chart this", "can you graph these numbers", "show this as a bar chart", "plot the results", "visualize this data") — you MUST call the generate_chart_tool rather than describing the data or attempting to draw it in text.
+- The tool accepts an optional "chart_type" parameter ("auto", "bar", "line", "scatter", or "pie"). If the user does not specify a chart type, default to "auto".
+- Do NOT re-run a query before charting. The tool operates on the most recent query results already in memory.
+- If no query has been run yet in the session, still call generate_chart_tool — it will handle telling the user there is nothing to chart.
+
 {schema_context}"""
 
 
