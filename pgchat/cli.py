@@ -41,7 +41,7 @@ from pgchat.ui import (
     print_tool_response,
     print_warning,
 )
-from pgchat.tools import set_explain_context
+from pgchat.tools import set_explain_context, get_last_query_result
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
@@ -502,6 +502,8 @@ def _handle_command(
         chat_history.clear()
         print_success("Session history cleared.")
     elif cmd == "/export":
+        _do_export_query_result(arg)
+    elif cmd == "/export-session":
         save_session(session_name, chat_history, cfg.model, cfg.get_db_label(), summary, schema_cache)
         md = export_session_markdown(session_name)
         if md:
@@ -520,6 +522,37 @@ def _handle_command(
         print_warning(f"Unknown command: {cmd}. Type /help for commands.")
 
     return None
+
+
+def _do_export_query_result(fmt: str) -> None:
+    """Handle /export <csv|json> — export last query result to file."""
+    from pgchat.export import export_results
+
+    VALID_FORMATS = ("csv", "json")
+
+    # Validate format argument
+    if not fmt:
+        print_info("Please specify a format: /export csv or /export json")
+        return
+    fmt = fmt.lower().strip()
+    if fmt not in VALID_FORMATS:
+        print_error(f"Invalid format '{fmt}'. Valid options: csv, json")
+        return
+
+    # Check we have a result to export
+    result = get_last_query_result()
+    if result is None:
+        print_warning("No query results available to export yet — run a query first.")
+        return
+
+    # Call shared export function
+    message = export_results(result, fmt)
+
+    # Determine success vs error from the message
+    if message.startswith("Failed") or message.startswith("Cannot") or message.startswith("Invalid"):
+        print_error(message)
+    else:
+        print_success(message)
 
 
 def _do_refresh_schema(

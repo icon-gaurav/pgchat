@@ -33,6 +33,12 @@ Guidelines:
 - Use search_schema when the user asks "which table has X column?"
 - Use run_query to execute SQL queries.
 
+Exporting results:
+- If the user asks to export, save, download, or get a file of query results — in any phrasing (e.g., "export this", "can I get this as a CSV", "save these results", "download as json") — you MUST call the export_results_tool. Do NOT write out or describe the data in your text response instead.
+- Do not attempt to produce a file by printing data in your reply. Always delegate to export_results_tool, which writes the file and returns the path.
+- The tool accepts a "format" parameter ("csv" or "json"). If the user does not specify a format, default to "csv".
+- If no query has been run yet in the session, still call export_results_tool — it will handle telling the user there is nothing to export.
+
 {schema_context}"""
 
 

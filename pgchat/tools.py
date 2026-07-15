@@ -9,9 +9,23 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
-from pgchat.db import execute_sql, SQLSafetyError, SQLExecutionError
+from pgchat.db import execute_sql, ExecutionResult, SQLSafetyError, SQLExecutionError
 
 logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────
+# Last query result cache (for /export command)
+# ──────────────────────────────────────────────
+# Stores the most recent ExecutionResult from run_query so /export can
+# reuse it without re-executing. Module-level to avoid touching execute_sql().
+
+_last_query_result: Optional[ExecutionResult] = None
+
+
+def get_last_query_result() -> Optional[ExecutionResult]:
+    """Return the most recent query result, or None if no query has run yet."""
+    return _last_query_result
+
 
 # ──────────────────────────────────────────────
 # Explain-before-execute context
@@ -107,8 +121,11 @@ def run_query(query: str) -> str:
             # Explanation failure must never block query execution
             logger.warning(f"Explain step failed (non-blocking): {e}")
 
+    global _last_query_result
     try:
         result = execute_sql(query)
+        # Cache result for /export command (always, even empty results)
+        _last_query_result = result
         if not result.columns:
             return f"Query executed. Rows affected: {result.row_count}"
         if not result.rows:
@@ -313,6 +330,17 @@ def explain_query(sql: str) -> str:
         return f"DB Error: {e}"
 
 
+@tool
+def export_results_tool(format: str = "csv") -> str:
+    """Export the most recent query results to a file. Use this tool ONLY when the user explicitly asks to export, save, download, or get a file of the query results that have already been fetched in this session. Supported formats: "csv" or "json". If the user does not specify a format, default to "csv". Do NOT use this tool to run new queries — it only exports data that was already retrieved."""
+    from pgchat.export import export_results
+
+    result = get_last_query_result()
+    if result is None:
+        return "No query results available to export yet — run a query first."
+    return export_results(result, format)
+
+
 # All tools list for agent registration
 ALL_TOOLS = [
     list_tables,
@@ -324,5 +352,6 @@ ALL_TOOLS = [
     get_db_info,
     get_foreign_keys,
     explain_query,
+    export_results_tool,
 ]
 
